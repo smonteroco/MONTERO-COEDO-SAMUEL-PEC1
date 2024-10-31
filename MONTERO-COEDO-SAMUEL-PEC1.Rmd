@@ -1,0 +1,162 @@
+---
+title: "Montero-Coedo-Samuel-PEC1"
+author: "Samuel Montero"
+date: "2024-10-29"
+output:
+  pdf_document: default
+  html_document: default
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+# PEC 1 - ANÁLISIS DE DATOS ÓMICOS
+
+## DESCARGA Y LECTURA DE DATOS Y CARGA DE PAQUETES Y LIBRERÍAS
+
+En primer lugar he procedido a la descarga de mis datos a partir del siguiente repositorio de Github: <https://github.com/nutrimetabolomics/metaboData/>. Dentro del cual accediendo a la carpeta de datasets he seleccionado el titulado 2018-MetabotypingPaper. Luego descargué tanto el archivo DataInfo el cual contiene los Metadatos asociados a las variables y el DataValues que contiene nuestros datos que son medidas de datos de 39 pacientes en 5 puntos temporales.
+
+```{r}
+# Leer y cargar los datos 
+data_values <- read.csv("C:\\Users\\Samuel Montero\\Desktop\\MASTER\\ANÁLISIS DE DATOS ÓMICOS\\PEC1\\DataValues_S013.csv",row.names = 1)
+data_info <- read.csv("C:\\Users\\Samuel Montero\\Desktop\\MASTER\\ANÁLISIS DE DATOS ÓMICOS\\PEC1\\DataInfo_S013.csv",row.names = 1)
+
+```
+
+```{r}
+
+if (!requireNamespace("BiocManager", quietly = TRUE))
+    install.packages("BiocManager")
+BiocManager::install("SummarizedExperiment")
+
+```
+
+```{r}
+library(S4Vectors)
+library(SummarizedExperiment)
+library(dplyr)
+library(ggplot2)
+```
+
+## PREPARACIÓN Y MANIPULACIÓN DE LOS DATOS
+
+A continuación me dispongo a crear el Contenedor del tipo SummarizedExperiment. En primer lugar revisé documentación para conocer más acerca de esta expresión, en lugares como <https://bioconductor.org/packages/release/bioc/vignettes/SummarizedExperiment/inst/doc/SummarizedExperiment.html> , <https://www.rdocumentation.org/packages/SummarizedExperiment/versions/1.2.3/topics/SummarizedExperiment-class> o <https://uclouvain-cbio.github.io/bioinfo-training-02-rnaseq/sec-se.html>. Lo que tenemos al final es una matriz de datos, en nuestro caso los DataValues que contienen valores clínicos y metabolómicos para 39 pacientes y luego los metadatos asociados a nuestras variables en este caso y no a las muestras. Por lo que habrá que manipular los datos. En primer lugar voy a extraer ciertas columnas de data_values para crear un dataframe de metadatos de las muestras y así tendremos información sobre las muestras y no sobre las variables. En este caso extraigo age, gender, group y surgery.De este modo tendremos un objeto SummarizedExperiment con todos sus campos, sin obviar ninguno. También debemos hacer que el número de columnas en assays coincida con el número de filas en colData por lo que transpongo la matriz data values y de este modo las muestras están en filas y las variables en columnas.
+
+```{r}
+# Transponer data_values para que las muestras estén en filas
+data_values_t <- t(data_values)
+
+# Extraer columnas de metadatos de muestras de data_values
+metadata <- data_values[, c("SURGERY","AGE", "GENDER", "Group")]
+
+# Asegurar que los nombres de fila de metadata coincidan con los nombres de columna de data_values_t
+rownames(metadata) <- colnames(data_values_t)
+
+# Convertir metadata a DataFrame de Bioconductor
+metadata <- DataFrame(metadata)
+
+```
+
+Debemos hacer que el número de columnas en assays coincida con el número de filas en colData por lo que transpongo la matriz data values y de este modo las muestras están en filas y las variables en columnas.
+
+## COMPROBACIONES PREVIAS
+
+```{r}
+# Verificar que los nombres de fila en data_values_t coinciden con los nombres de fila en data_info
+stopifnot(rownames(data_values_t) == rownames(data_info))
+
+# Verificar que los nombres de columna en data_values_t coinciden con los nombres de fila en metadata
+stopifnot(colnames(data_values_t) == rownames(metadata))
+
+```
+
+## SUMMARIZEDEXPERIMENT
+
+Tras estas comprobaciones es cuando podemos crear tranquilamente el objeto.
+
+```{r}
+# Crear el objeto SummarizedExperiment
+se <- SummarizedExperiment(
+    assays = list(counts = as.matrix(data_values_t)),
+    colData = metadata,
+    rowData = data_info
+)
+
+```
+
+## EXPLORACIÓN GENERAL
+
+Ahora realizaremos una exploración general del dataset.
+
+```{r}
+se
+
+```
+
+```{r}
+dim(se)
+```
+
+```{r}
+head(assay(se))       # Las primeras filas de la matriz de datos principal
+```
+
+```{r}
+colnames(colData(se)) # Nombres de las columnas en colData
+```
+
+```{r}
+head(colData(se))     # Muestra las primeras filas de colData para un vistazo general
+```
+
+```{r}
+colnames(rowData(se)) # Nombres de las columnas en rowData
+```
+
+```{r}
+head(rowData(se))     # Muestra las primeras filas de rowData
+```
+
+También podemos agrupar las muestras dependiendo del tipo de cirgía que se les haya realizado a los diversos sujetos. También podemos visualizarlo, además de hacer un análisis descriptivo.
+
+```{r}
+colData(se)
+
+# Extraer los datos para "by pass"
+se_bypass <- se[, colData(se)$SURGERY == "by pass"]
+
+# Extraer los datos para "tubular"
+se_tubular <- se[, colData(se)$SURGERY == "tubular"]
+
+
+# Convertir colData a data frame 
+metadata_df <- as.data.frame(colData(se))
+
+# Resumen estadístico agrupado por tipo de cirugía
+metadata_df %>%
+  group_by(SURGERY) %>%
+  summarise(
+    avg_age = mean(AGE, na.rm = TRUE),
+    count = n()
+  )
+
+# Gráfico para la visualización
+ggplot(metadata_df, aes(x = SURGERY)) +
+  geom_bar(fill = "steelblue") +
+  labs(title = "Cantidad de Muestras por Tipo de Cirugía", x = "Tipo de Cirugía", y = "Cantidad de Muestras")
+
+```
+
+## OBJETO CONTENEDOR EN FORMATO .RDA
+
+```{r}
+save(se, file = "SummarizedExperiment_Objeto.Rda")
+rm(list = ls()) # Limpia todos los objetos del entorno
+load("C:/Users/Samuel Montero/Desktop/SummarizedExperiment_Objeto.Rda")
+ls() # Muestra solo los objetos cargados desde el archivo .rda
+```
+
+## REPOSITORIO GITHUB
+
+En esta parte del informe se adjunta el link que lleva al repositorio GitHub <https://github.com/smonteroco/MONTERO-COEDO-SAMUEL-PEC1.git>
