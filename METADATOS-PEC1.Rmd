@@ -1,0 +1,34 @@
+---
+title: "METADATOS"
+author: "Samuel Montero"
+date: "2024-10-31"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r}
+# Leer y cargar los datos 
+data_values <- read.csv("C:\\Users\\Samuel Montero\\Desktop\\MASTER\\ANÁLISIS DE DATOS ÓMICOS\\PEC1\\DataValues_S013.csv",row.names = 1)
+data_info <- read.csv("C:\\Users\\Samuel Montero\\Desktop\\MASTER\\ANÁLISIS DE DATOS ÓMICOS\\PEC1\\DataInfo_S013.csv",row.names = 1)
+
+```
+
+
+```{r}
+# Transponer data_values para que las muestras estén en filas
+data_values_t <- t(data_values)
+
+# Extraer columnas de metadatos de muestras de data_values
+metadata <- data_values[, c("SURGERY","AGE", "GENDER", "Group")]
+
+# Asegurar que los nombres de fila de metadata coincidan con los nombres de columna de data_values_t
+rownames(metadata) <- colnames(data_values_t)
+```
+
+En nuestro caso tenemos en la parte de ColData del SummarizedExperiment el data frame metadata el cual como se ha explicado en el informe se ha creado a partir de ciertas columnas que contienen información relevante sobre las muestras de data values. Esta información es el tipo de cirugía (bypass o tubular), la edad de los 39 sujetos el género de los mismos y el grupo al que pertenecen. 
+
+En la parte de rowData hemos puesto data_info que corresponde a información acerca de las variables como el nombre de la variable, el tipo y una descripción.
+
